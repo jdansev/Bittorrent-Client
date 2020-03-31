@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "esm": "^3.2.25"
+  },
+  "scripts": {
+    "start": "node -r esm index"
+  }
+}
