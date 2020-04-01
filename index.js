@@ -1,106 +1,143 @@
 import url from 'url';
-import crypto from 'crypto';
 import dgram from 'dgram';
 
+import * as torrentParser from './torrent-parser';
+import { buildConnectPacket, buildAnnouncePacket } from './packets';
 
-const RETRY_TIMEOUT_MS = 1200;
+
+const RETRY_TIMEOUT_MS = 1000;
 const MAX_RETRIES = 5;
 
+const PACKET = Object.freeze({
+  CONNECT: 0,
+  ANNOUNCE: 1,
+});
 
-const buildConnectRequest = () => {
-	let buffer = Buffer.alloc(16);
+const parseConnectResponse = response => {
+  return {
+    action: response.readUInt32BE(0),
+    transactionId: response.readUInt32BE(4),
+    connectionId: response.slice(8)
+  }
+}
 
-	// Protocol ID
-	buffer.writeUInt32BE(0x417, 0);
-	buffer.writeUInt32BE(0x27101980, 4);
+const parseAnnounceResponse = response => {
+  function group(iterable, groupSize) {
+    let groups = [];
+    for (let i = 0; i < iterable.length; i += groupSize) {
+      groups.push(iterable.slice(i, i + groupSize));
+    }
+    return groups;
+  }
 
-	// Action
-	buffer.writeUInt32BE(0, 8);
-
-	// Transaction ID
-	crypto.randomBytes(4).copy(buffer, 12);
-
-	return buffer;
+  return {
+    action: response.readUInt32BE(0),
+    transactionId: response.readUInt32BE(4),
+    leechers: response.readUInt32BE(8),
+    seeders: response.readUInt32BE(12),
+    peers: group(response.slice(20), 6).map(address => {
+      return {
+        ip: address.slice(0, 4).join('.'),
+        port: address.readUInt16BE(4)
+      }
+    })
+  }
 }
 
 
-const parseConnectResponse = (response) => {
-	return {
-		action: response.readUInt32BE(0),
-		transactionId: response.readUInt32BE(4),
-		connectionId: response.slice(8)
-	}
+function responseType(response) {
+  const action = response.readUInt32BE(0);
+  if (action === 0) return 'connect';
+  if (action === 1) return 'announce';
 }
 
 
-const sendConnectionRequest = (socket, msg, connectUrl) => {
-	socket.send(msg, 0, msg.length, connectUrl.port, connectUrl.hostname, () => {});
-}
+const udpSend = (torrent, packetType, connResponse = undefined) => {
+  let socket = dgram.createSocket('udp4');
+  let announceUrl = url.parse(torrent.announce.toString('utf8'));
 
+  return new Promise((resolve, reject) => {
+    let retryTimer;
+    let nRetries = 0;
 
-const connectToTracker = (rawAnnounceUrl) => {
+    const closeSocket = () => {
+      clearTimeout(retryTimer);
+      if (socket) {
+        socket.close();
+        socket = undefined;
+      }
+    }
 
-	/* Establish a new tracker connection */
-	return new Promise((resolve, reject) => {
+    const onSocketResponse = socketResponse => {
+      let response;
 
-		let nRetries = 0;
+      if (responseType(socketResponse) == 'connect') {
+        console.log('Connect response received.');
+        response = parseConnectResponse(socketResponse);
+      }
+      
+      else if (responseType(socketResponse) == 'announce') {
+        console.log('Announce response received.');
+        response = parseAnnounceResponse(socketResponse);
+      }
 
-		let announceUrl = url.parse(rawAnnounceUrl);
-		console.log(announceUrl);
-	
-		const socket = dgram.createSocket('udp4');
-		const connectionMessage = buildConnectRequest();
+      closeSocket();
+      return resolve(response);
+    }
 
-		sendConnectionRequest(socket, connectionMessage, announceUrl);
+    const onMaxRetries = () => {
+      closeSocket();
+      return reject('Max retries reached.');
+    }
 
-		const checkConnectResponse = () => {
-			console.log('No response.');
+    const send = () => {
+      if (nRetries >= MAX_RETRIES) {
+        return onMaxRetries();
+      }
 
-			if (nRetries >= MAX_RETRIES) {
-				clearTimeout(retryTimeout);
-				reject(`Error: ${rawAnnounceUrl}\nMax retries reached.`);
-				return;
-			}
+      let udpPacket;
+      switch (packetType) {
+        case PACKET.CONNECT:
+          udpPacket = buildConnectPacket();
+          console.log('Sending connect request...');
+          break;
+        case PACKET.ANNOUNCE:
+          udpPacket = buildAnnouncePacket(connResponse.connectionId, torrent);
+          console.log('Sending announce request...');
+          break;
+      }
 
-			console.log('Resending connect response...');
-			sendConnectionRequest(socket, connectionMessage, announceUrl);
+      /* Send the UDP packet */
+      socket.send(udpPacket, 0, udpPacket.length, announceUrl.port, announceUrl.hostname, () => {});
+      socket.on('message', onSocketResponse);
 
-			clearTimeout(retryTimeout);
-			retryTimeout = setTimeout(checkConnectResponse, RETRY_TIMEOUT_MS);
-			nRetries++;
-		}
+      retryTimer = setTimeout(send, RETRY_TIMEOUT_MS);
+      nRetries++;
+    }
 
-		socket.on('message', response => {
-			console.log('Connection response received.');
+    send();
+  });
 
-			clearTimeout(retryTimeout);
-			console.log('Retry timeout cleared.');
+};
 
-			const connectReponse = parseConnectResponse(response);
-
-			socket.close();
-			console.log('Socket closed.');
-			resolve(connectReponse);
-		});
-
-		let retryTimeout = setTimeout(checkConnectResponse, RETRY_TIMEOUT_MS);
-	});
-
-}
 
 
 const main = async () => {
+  console.log('Starting program.');
+  const torrent = torrentParser.open('book.torrent');
 
-	try {
-		let connectResponse = await connectToTracker('udp://open.stealth.si:80/announce');
-		console.log(connectResponse);
-	}
-	catch (err) {
-		console.log('Bad announce url.');
-	}
+  try {
+    let connectResponse = await udpSend(torrent, PACKET.CONNECT);
+    console.log(connectResponse);
 
-	console.log('Done!');
-	process.exit();
-};
+    let announceResponse = await udpSend(torrent, PACKET.ANNOUNCE, connectResponse);
+    console.log(announceResponse);
 
-main().catch(err => console.log(err));
+  } catch (e) {
+    console.error(e);
+  }
+
+  console.log('Program terminated.');
+}
+
+main().catch(e => console.error(e));

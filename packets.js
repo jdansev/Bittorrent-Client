@@ -1,0 +1,127 @@
+import crypto from 'crypto';
+import bencode from 'bencode';
+
+import { toBigIntBE, toBufferBE } from 'bigint-buffer';
+
+
+const generatePeerId = () => {
+  let peerId = crypto.randomBytes(20);
+  Buffer.from('-BC0001-').copy(peerId, 0);
+  return peerId;
+};
+
+const infoHash = torrent => {
+  const info = bencode.encode(torrent.info);
+  return crypto.createHash('sha1').update(info).digest();
+};
+
+const torrentSize = torrent => {
+  const size = torrent.info.files ?
+    torrent.info.files.map(file => file.length).reduce((a, b) => a + b) :
+    torrent.info.length;
+
+  return toBufferBE(BigInt(size), 8);
+};
+
+
+/* Connect Request
+
+	Offset   Size (bits)   Size (bytes)   Name             Value
+	-------------------------------------------------------------------------------------
+	0        64-bit        8 bytes        protocol_id      0x41727101980   (magic number)
+	8        32-bit        4 bytes        action           0               (connect)
+	12       32-bit        4 bytes        transaction_id   <randomly generated>
+	16
+
+*/
+
+export const buildConnectPacket = () => {
+	let buffer = Buffer.alloc(16);
+
+	// Protocol ID
+	buffer.writeUInt32BE(0x417, 0);
+	buffer.writeUInt32BE(0x27101980, 4);
+
+	// Action
+	buffer.writeUInt32BE(0, 8);
+
+	// Transaction ID
+	crypto.randomBytes(4).copy(buffer, 12);
+
+	return buffer;
+}
+
+
+
+/* Announce Request
+
+	Offset   Size (bits)   Size (bytes)   Name             Value
+	----------------------------------------------------------------------------------------------
+	0        64-bit        8 bytes        connection_id    <Connection ID> (from Connect Response)
+	8        32-bit        4 bytes        action           1 (announce)
+	12       32-bit        4 bytes        transaction_id   <Randomly Generated>
+	16       160-bit       20 bytes       info_hash
+	36       160-bit       20 bytes       peer_id
+	56       64-bit        8 bytes        downloaded       0
+	64       64-bit        8 bytes        left             <Torrent File Size>
+	72       64-bit        8 bytes        uploaded         0
+	80       32-bit        4 bytes        event            0 (None)
+	84       32-bit        4 bytes        ip_address       0
+	88       32-bit        4 bytes        key              <Randomly Generated>
+	92       32-bit        4 bytes        num_want         -1
+	96       16-bit        2 bytes        port             6881 (between 6881 and 6889)
+	98
+
+*/
+
+export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
+  let buffer = Buffer.alloc(98);
+
+	// Connection ID
+	connId.copy(buffer, 0);
+
+	/* Action
+		1: Announce
+	*/
+	buffer.writeUInt32BE(0x1, 8);
+
+	// Transaction ID
+	crypto.randomBytes(4).copy(buffer, 12);
+
+  // Info Hash
+  infoHash(torrent).copy(buffer, 16);
+
+	// Peer ID
+	generatePeerId().copy(buffer, 36);
+
+	// Downloaded
+	Buffer.alloc(8).copy(buffer, 56);
+
+  // Left
+  torrentSize(torrent).copy(buffer, 64);
+
+	// Uploaded
+	Buffer.alloc(8).copy(buffer, 72);
+
+	/* Event
+		0: None
+		1: Completed
+		2: Started
+		3: Stopped
+	*/
+	buffer.writeUInt32BE(0x0, 80);
+
+	// IP Address
+	buffer.writeUInt32BE(0x0, 84);
+
+	// Key
+	crypto.randomBytes(4).copy(buffer, 88);
+
+	// Num Want
+	buffer.writeInt32BE(-1, 92);
+
+	// Port
+  buffer.writeUInt16BE(port, 96);
+
+	return buffer;
+}
