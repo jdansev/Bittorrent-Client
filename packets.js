@@ -3,10 +3,12 @@ import bencode from 'bencode';
 
 import { toBigIntBE, toBufferBE } from 'bigint-buffer';
 
-
+let peerId = null;
 const generatePeerId = () => {
-  let peerId = crypto.randomBytes(20);
-  Buffer.from('-BC0001-').copy(peerId, 0);
+	if (!peerId) {
+		peerId = crypto.randomBytes(20);
+  	Buffer.from('-BC0001-').copy(peerId, 0);
+	}
   return peerId;
 };
 
@@ -122,6 +124,42 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 
 	// Port
   buffer.writeUInt16BE(port, 96);
+
+	return buffer;
+}
+
+
+
+/* Handshake
+
+	Offset   Size (bits)   Size (bytes)   Name             Value
+	--------------------------------------------------------------------------------------
+	0        8-bit         1 byte         pstrlen          <String length of pstr>
+	1        152-bit       19 bytes       pstr             "BitTorrent protocol"
+	20       64-bit        8 bytes        reserved         0
+	28       160-bit       20 bytes       info_hash        <SHA-1 Hash of Torrent's Info>
+	48       160-bit       20 bytes       peer_id          <Peer ID from Announce Request>
+	68
+
+*/
+
+export const buildHandshake = torrent => {
+	let buffer = Buffer.alloc(68);
+
+	// pstrlen
+	buffer.writeUInt8(19, 0);
+
+	// pstr
+	buffer.write('BitTorrent protocol', 1);
+
+	// Reserved
+	Buffer.alloc(8).copy(buffer, 20);
+
+	// Info Hash
+	infoHash(torrent).copy(buffer, 28);
+
+	// Peer ID
+	generatePeerId().copy(buffer, 48);
 
 	return buffer;
 }

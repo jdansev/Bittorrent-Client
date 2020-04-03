@@ -2,6 +2,7 @@
   "dependencies": {
     "bencode": "^2.0.1",
     "bigint-buffer": "^1.1.5",
+    "chalk": "^4.0.0",
     "esm": "^3.2.25"
   },
   "scripts": {
