@@ -43,13 +43,20 @@ const dataPrefix = `${chalk.bgWhite.black(' Data ')}      `;
 const connectedPrefix = `${chalk.bgGreen.black(' Connected ')} `;
 const errorPrefix = `${chalk.bgRed.white(' Error ')}     `;
 
+
+const dataLog = (peer) => console.log(`${dataPrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
+const errorLog = (peer) => console.log(`${errorPrefix} ${chalk.gray('closing socket')} ${peer.ip}:${peer.port}`);
+const handshakeLog = (peer) => console.log(`${handshakePrefix} ${chalk.gray('from')}           ${peer.ip}:${peer.port}`);
+const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to peer at')}     ${peer.ip}:${peer.port}`);
+
+
 const onWholeMsg = (socket, peer, callback) => {
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
 
   socket.on('data', recvBuf => {
 
-    console.log(`${dataPrefix} received from ${peer.ip}:${peer.port}`);
+    dataLog(peer);
 
     // msgLen calculates the length of a whole message
     const msgLen = () => handshake ? savedBuf.readUInt8(0) + 49 : savedBuf.readInt32BE(0) + 4;
@@ -60,7 +67,7 @@ const onWholeMsg = (socket, peer, callback) => {
       // callback(savedBuf.slice(0, msgLen()));
 
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
-        console.log(`${handshakePrefix} from ${peer.ip}:${peer.port}`);
+        handshakeLog(peer);
       }
 
       savedBuf = savedBuf.slice(msgLen());
@@ -77,12 +84,12 @@ export const download = (peer, torrent) => {
   let socket = net.Socket();
 
   socket.on('error', () => {
-    console.log(`${errorPrefix} closing socket ${peer.ip}:${peer.port}.`);
+    errorLog(peer);
     socket.destroy();
   });
 
   socket.connect(peer.port, peer.ip, () => {
-    console.log(`${connectedPrefix} to ${peer.ip}:${peer.port}`);
+    connectedLog(peer);
     socket.write(buildHandshake(torrent));
   });
 
