@@ -3,13 +3,30 @@ import chalk from 'chalk';
 import net from 'net';
 
 import { buildHandshake, buildInterested } from './packets';
-import { haveHandler, bitfieldHandler, unchokeHandler } from './message-handlers';
+import { haveHandler, bitfieldHandler, chokeHandler, unchokeHandler } from './message-handlers';
 
+
+
+
+
+const createSocketTimeout = (timeoutName, socket, peer, TIMEOUT_MS) => {
+  let flag = false;
+
+  return {
+    start: () => setTimeout(() => {
+      if (!flag) {
+        console.log(`${timeoutName} ${peer.ip}:${peer.port}`);
+        socket.destroy();
+      }
+    }, TIMEOUT_MS),
+
+    stop: () => flag = true
+  }
+}
 
 
 
 const parseRecvBuf = msg => {
-
   const id = msg.length > 4 ? msg.readInt8(4) : null;
   let payload = msg.length > 5 ? msg.slice(5) : null;
 
@@ -27,14 +44,10 @@ const parseRecvBuf = msg => {
     id : id,
     payload : payload
   }
-
 };
 
 
 
-const msgHandler = (msg, socket, torrent) => {
-  if (isHandshake(msg)) return;
-}
 
 
 const isHandshake = msg => {
@@ -47,17 +60,6 @@ const isHandshake = msg => {
   let msgByteLength = msg.length;
   let isBTProtocol = pstr === 'BitTorrent protocol';
   let isExpectedByteLength = msgByteLength === expectedByteLength;
-
-
-  // console.log('============================================');
-  // console.log(`pstrlen: ${pstrlen}`);
-  // console.log(`pstr: ${pstr}`);
-  // console.log(`expectedByteLength: ${expectedByteLength}`);
-  // console.log(`msgByteLength: ${msgByteLength}`);
-  // console.log(`is Bittorrent protocol? ${isBTProtocol}`);
-  // console.log(`isExpectedByteLength: ${isExpectedByteLength}`);
-  // console.log('============================================');
-
 
   return isExpectedByteLength && isBTProtocol;
 }
@@ -76,9 +78,24 @@ const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to 
 
 
 
-const onWholeMsg = (socket, peer, callback) => {
+const onWholeMsg = (socket, peer) => {
+
+  const HANDSHAKE_TIMEOUT_MS = 10000;
+  const FOLLOW_UP_TIMEOUT_MS = 10000;
+
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
+
+  let hasHandshaked = false;
+  let hasFollowedUp = false;
+
+
+  /* Start handshake timeout */
+  let handshakeTimeout = createSocketTimeout('Handshake Timeout', socket, peer, HANDSHAKE_TIMEOUT_MS);
+  handshakeTimeout.start();
+
+
+
 
   socket.on('data', recvBuf => {
 
@@ -90,22 +107,53 @@ const onWholeMsg = (socket, peer, callback) => {
 
       // callback(savedBuf.slice(0, msgLen()));
 
+      // When placed inside the socket's receive listener, the timeout resets each time a follow up is received
+      let followUpTimeout = createSocketTimeout('Follow Up Timeout', socket, peer, FOLLOW_UP_TIMEOUT_MS);
+
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
+        handshakeTimeout.stop();
+
         handshakeLog(peer);
         socket.write(buildInterested());
+
+        // After handshake start the follow up timeout
+        followUpTimeout.start();
+
       } else {
+
+        followUpTimeout.stop();
 
         const msg = parseRecvBuf(savedBuf.slice(0, msgLen()));
 
         switch (msg.id) {
-          case 1: unchokeHandler(peer); break;
-          case 4: haveHandler(peer); break;
-          case 5: bitfieldHandler(peer); break;
-          default: dataLog(peer); break;
+          case 0: chokeHandler(peer);
+            socket.destroy();
+            return;
+            // break;
+
+          case 1: unchokeHandler(peer);
+            socket.destroy();
+            return;
+            // break;
+
+          case 4: haveHandler(peer);
+            socket.destroy();
+            return;
+            // break;
+
+          case 5: bitfieldHandler(peer);
+            socket.destroy();
+            return;
+            // break;
+
+          default: dataLog(peer);
+            socket.destroy();
+            return;
+            // break;
+
         }
 
         console.log(msg);
-
       }
 
       savedBuf = savedBuf.slice(msgLen());
@@ -116,10 +164,28 @@ const onWholeMsg = (socket, peer, callback) => {
 
 
 
+
+
+const connectToPeer = () => {
+
+}
+
+
+
+
+
+
+
 export const download = (peer, torrent) => {
+  const CONNECTION_TIMEOUT_MS = 10000;
+
   let socket = net.Socket();
 
-  socket.on('error', () => {
+  let connectTimeout = createSocketTimeout('Connection Timeout', socket, peer, CONNECTION_TIMEOUT_MS);
+  connectTimeout.start();
+
+
+  socket.on('error', err => {
     errorLog(peer);
     socket.destroy();
   });
@@ -127,9 +193,13 @@ export const download = (peer, torrent) => {
   socket.connect(peer.port, peer.ip, () => {
     connectedLog(peer);
     socket.write(buildHandshake(torrent));
-  });
 
-  onWholeMsg(socket, peer, msg => msgHandler(msg, socket, torrent));
+    connectTimeout.stop();
+
+    // Only enable the data listener once socket is connected
+    onWholeMsg(socket, peer);
+  });
+  
 };
 
 
