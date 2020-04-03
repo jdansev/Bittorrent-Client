@@ -30,7 +30,7 @@ Offset   Size (bits)   Size (bytes)   Name             Value
 0        64-bit        4 bytes        length_prefix    0                 
 4                                                                          */
 
-export const buildKeepAlive = Buffer.alloc(4);
+export const buildKeepAlive = () => Buffer.alloc(4);
 
 
 
@@ -42,7 +42,7 @@ Offset   Size (bits)   Size (bytes)   Name             Value
 4        8-bit          1 byte        id               0 (Choke)         
 5                                                                          */
 
-export const buildChoke = buildMessage(0);
+export const buildChoke = () => buildMessage(0);
 
 
 
@@ -54,7 +54,7 @@ Offset   Size (bits)   Size (bytes)   Name             Value
 4        8-bit         1 byte         id               1 (Unchoke)       
 5                                                                          */
 
-export const buildUnchoke = buildMessage(1);
+export const buildUnchoke = () => buildMessage(1);
 
 
 
@@ -66,7 +66,7 @@ Offset   Size (bits)   Size (bytes)   Name             Value
 4        8-bit          1 byte        id               2 (Interested)    
 5                                                                          */
 
-export const buildInterested = buildMessage(2);
+export const buildInterested = () => buildMessage(2);
 
 
 
@@ -78,7 +78,7 @@ Offset   Size (bits)   Size (bytes)   Name             Value
 4        8-bit         1 byte         id               3 (Not Interested)
 5                                                                          */
 
-export const buildNotInterested = buildMessage(3);
+export const buildNotInterested = () => buildMessage(3);
 
 
 

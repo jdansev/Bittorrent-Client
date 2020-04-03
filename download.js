@@ -8,9 +8,9 @@ import { haveHandler, bitfieldHandler, chokeHandler, unchokeHandler } from './me
 
 
 
-const parseRecvBuf = msg => {
-  const id = msg.length > 4 ? msg.readInt8(4) : null;
-  let payload = msg.length > 5 ? msg.slice(5) : null;
+const parseSocketMessage = message => {
+  const id = message.length > 4 ? message.readInt8(4) : null;
+  let payload = message.length > 5 ? message.slice(5) : null;
 
   if (id === 6 || id === 7 || id === 8) {
     const rest = payload.slice(8);
@@ -22,7 +22,7 @@ const parseRecvBuf = msg => {
   }
 
   return {
-    size: msg.readInt32BE(0),
+    size: message.readInt32BE(0),
     id: id,
     payload: payload
   }
@@ -31,14 +31,14 @@ const parseRecvBuf = msg => {
 
 
 
-const isHandshake = msg => {
+const isHandshake = message => {
 
   // The string length of <pstr> as a single byte
-  let pstrlen = msg.readUInt8(0);
+  let pstrlen = message.readUInt8(0);
 
   let expectedByteLength = 49 + pstrlen;
-  let pstr = msg.toString('utf8', 1, 20);
-  let msgByteLength = msg.length;
+  let pstr = message.toString('utf8', 1, 20);
+  let msgByteLength = message.length;
   let isBTProtocol = pstr === 'BitTorrent protocol';
   let isExpectedByteLength = msgByteLength === expectedByteLength;
 
@@ -59,10 +59,11 @@ const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to 
 
 
 
+
 const onWholeMsg = (socket, peer) => {
 
   const HANDSHAKE_TIMEOUT_MS = 10000;
-  const FOLLOW_UP_TIMEOUT_MS = 20000;
+  const FOLLOW_UP_TIMEOUT_MS = 10000;
 
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
@@ -72,39 +73,41 @@ const onWholeMsg = (socket, peer) => {
   handshakeTimeout.start();
 
 
+  
+  // When placed inside the socket's receive listener, the timeout resets each time a follow up message is received
+  let messageTimeout = createSocketTimeout('Message Timeout', socket, peer, FOLLOW_UP_TIMEOUT_MS);
 
 
   socket.on('data', recvBuf => {
 
-    // msgLen calculates the length of a whole message
+    // Calculates the length of a whole message
     const msgLen = () => handshake ? savedBuf.readUInt8(0) + 49 : savedBuf.readInt32BE(0) + 4;
     savedBuf = Buffer.concat([savedBuf, recvBuf]);
+
+
+    // On socket message, and handshake has already been received, start the follow up timeout
+    if (handshake) {
+      messageTimeout.start();
+    }
 
 
     while (savedBuf.length >= 4 && savedBuf.length >= msgLen()) {
 
 
-
-      // When placed inside the socket's receive listener, the timeout resets each time a follow up is received
-      let followUpTimeout = createSocketTimeout('Follow Up Timeout', socket, peer, FOLLOW_UP_TIMEOUT_MS);
-
-
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
+
         handshakeTimeout.stop();
 
         handshakeLog(peer);
         socket.write(buildInterested());
 
-        // After handshake start the follow up timeout
-        followUpTimeout.start();
-
       } else {
 
-        followUpTimeout.stop();
+        messageTimeout.stop();
 
-        const msg = parseRecvBuf(savedBuf.slice(0, msgLen()));
+        const message = parseSocketMessage(savedBuf.slice(0, msgLen()));
 
-        switch (msg.id) {
+        switch (message.id) {
           case 0:
             chokeHandler(peer);
             break;
@@ -127,7 +130,7 @@ const onWholeMsg = (socket, peer) => {
 
         }
 
-        console.log(msg);
+        console.log(message);
       }
 
       savedBuf = savedBuf.slice(msgLen());
@@ -138,15 +141,9 @@ const onWholeMsg = (socket, peer) => {
 
 
 
-
-
 const connectToPeer = () => {
 
 }
-
-
-
-
 
 
 
@@ -159,7 +156,7 @@ export const download = (peer, torrent) => {
   connectTimeout.start();
 
 
-  socket.on('error', err => {
+  socket.on('error', _ => {
     errorLog(peer);
     socket.destroy();
   });

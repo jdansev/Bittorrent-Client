@@ -1,37 +1,6 @@
 import crypto from 'crypto';
-import bencode from 'bencode';
-import { toBigIntBE, toBufferBE } from 'bigint-buffer';
 
-
-
-
-const generatePeerId = () => {
-	let peerId;
-	return () => {
-		if (!peerId) {
-			peerId = crypto.randomBytes(20);
-			Buffer.from('-BC0001-').copy(peerId, 0);
-		}
-		return peerId;
-	}
-}
-
-const getPeerId = generatePeerId();
-
-
-const infoHash = torrent => {
-	const info = bencode.encode(torrent.info);
-	return crypto.createHash('sha1').update(info).digest();
-};
-
-
-const torrentSize = torrent => {
-	const size = torrent.info.files ?
-		torrent.info.files.map(file => file.length).reduce((a, b) => a + b) :
-		torrent.info.length;
-
-	return toBufferBE(BigInt(size), 8);
-};
+import { getPeerId, getInfoHash, getTorrentSize } from './torrent-parser';
 
 
 
@@ -94,7 +63,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	crypto.randomBytes(4).copy(buffer, 12);
 
 	// Info Hash
-	infoHash(torrent).copy(buffer, 16);
+	getInfoHash(torrent).copy(buffer, 16);
 
 	// Peer ID
 	getPeerId().copy(buffer, 36);
@@ -103,7 +72,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	Buffer.alloc(8).copy(buffer, 56);
 
 	// Left
-	torrentSize(torrent).copy(buffer, 64);
+	getTorrentSize(torrent).copy(buffer, 64);
 
 	// Uploaded
 	Buffer.alloc(8).copy(buffer, 72);
@@ -152,7 +121,7 @@ export const buildHandshake = torrent => {
 	Buffer.alloc(8).copy(buffer, 20);
 
 	// Info Hash
-	infoHash(torrent).copy(buffer, 28);
+	getInfoHash(torrent).copy(buffer, 28);
 
 	// Peer ID
 	getPeerId().copy(buffer, 48);

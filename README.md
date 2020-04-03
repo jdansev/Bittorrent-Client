@@ -1,9 +1,9 @@
 # Bittorrent-Client
 
-My own client that implements the Bittorrent Protocol v1.0.
+My own client that implements Bittorrent Protocol v1.0.
 
 
-### To Run
+### Usage
 ```
 yarn install && yarn start
 ```
