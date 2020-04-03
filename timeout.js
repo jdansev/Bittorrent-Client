@@ -1,7 +1,4 @@
 
-
-
-
 export const createSocketTimeout = (timeoutName, socket, peer, TIMEOUT_MS) => {
     let flag = false;
 

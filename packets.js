@@ -1,24 +1,29 @@
 import crypto from 'crypto';
 import bencode from 'bencode';
+import { toBigIntBE, toBufferBE } from 'bigint-buffer';
 
-import {
-	toBigIntBE,
-	toBufferBE
-} from 'bigint-buffer';
 
-let peerId = null;
+
+
 const generatePeerId = () => {
-	if (!peerId) {
-		peerId = crypto.randomBytes(20);
-		Buffer.from('-BC0001-').copy(peerId, 0);
+	let peerId;
+	return () => {
+		if (!peerId) {
+			peerId = crypto.randomBytes(20);
+			Buffer.from('-BC0001-').copy(peerId, 0);
+		}
+		return peerId;
 	}
-	return peerId;
-};
+}
+
+const getPeerId = generatePeerId();
+
 
 const infoHash = torrent => {
 	const info = bencode.encode(torrent.info);
 	return crypto.createHash('sha1').update(info).digest();
 };
+
 
 const torrentSize = torrent => {
 	const size = torrent.info.files ?
@@ -29,16 +34,15 @@ const torrentSize = torrent => {
 };
 
 
+
 /* Connect Request
 
-	Offset   Size (bits)   Size (bytes)   Name             Value
-	-------------------------------------------------------------------------------------
-	0        64-bit        8 bytes        protocol_id      0x41727101980   (magic number)
-	8        32-bit        4 bytes        action           0               (connect)
-	12       32-bit        4 bytes        transaction_id   <randomly generated>
-	16
-
-*/
+Offset   Size (bits)   Size (bytes)   Name             Value
+-------------------------------------------------------------------------------------
+0        64-bit        8 bytes        protocol_id      0x41727101980   (magic number)
+8        32-bit        4 bytes        action           0               (connect)
+12       32-bit        4 bytes        transaction_id   <randomly generated>
+16                                                                                     */
 
 export const buildConnectPacket = () => {
 	let buffer = Buffer.alloc(16);
@@ -60,24 +64,22 @@ export const buildConnectPacket = () => {
 
 /* Announce Request
 
-	Offset   Size (bits)   Size (bytes)   Name             Value
-	----------------------------------------------------------------------------------------------
-	0        64-bit        8 bytes        connection_id    <Connection ID> (from Connect Response)
-	8        32-bit        4 bytes        action           1 (announce)
-	12       32-bit        4 bytes        transaction_id   <Randomly Generated>
-	16       160-bit       20 bytes       info_hash
-	36       160-bit       20 bytes       peer_id
-	56       64-bit        8 bytes        downloaded       0
-	64       64-bit        8 bytes        left             <Torrent File Size>
-	72       64-bit        8 bytes        uploaded         0
-	80       32-bit        4 bytes        event            0 (None)
-	84       32-bit        4 bytes        ip_address       0
-	88       32-bit        4 bytes        key              <Randomly Generated>
-	92       32-bit        4 bytes        num_want         -1
-	96       16-bit        2 bytes        port             6881 (between 6881 and 6889)
-	98
-
-*/
+Offset   Size (bits)   Size (bytes)   Name             Value
+----------------------------------------------------------------------------------------------
+0        64-bit        8 bytes        connection_id    <Connection ID> (from Connect Response)
+8        32-bit        4 bytes        action           1 (announce)
+12       32-bit        4 bytes        transaction_id   <Randomly Generated>
+16       160-bit       20 bytes       info_hash
+36       160-bit       20 bytes       peer_id
+56       64-bit        8 bytes        downloaded       0
+64       64-bit        8 bytes        left             <Torrent File Size>
+72       64-bit        8 bytes        uploaded         0
+80       32-bit        4 bytes        event            0 (None)
+84       32-bit        4 bytes        ip_address       0
+88       32-bit        4 bytes        key              <Randomly Generated>
+92       32-bit        4 bytes        num_want         -1
+96       16-bit        2 bytes        port             6881 (between 6881 and 6889)
+98                                                                                              */
 
 export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	let buffer = Buffer.alloc(98);
@@ -85,9 +87,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	// Connection ID
 	connId.copy(buffer, 0);
 
-	/* Action
-		1: Announce
-	*/
+	// Action - 1: Announce
 	buffer.writeUInt32BE(0x1, 8);
 
 	// Transaction ID
@@ -97,7 +97,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	infoHash(torrent).copy(buffer, 16);
 
 	// Peer ID
-	generatePeerId().copy(buffer, 36);
+	getPeerId().copy(buffer, 36);
 
 	// Downloaded
 	Buffer.alloc(8).copy(buffer, 56);
@@ -108,12 +108,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	// Uploaded
 	Buffer.alloc(8).copy(buffer, 72);
 
-	/* Event
-		0: None
-		1: Completed
-		2: Started
-		3: Stopped
-	*/
+	// Event - 0: None, 1: Completed, 2: Started, 3: Stopped
 	buffer.writeUInt32BE(0x0, 80);
 
 	// IP Address
@@ -142,9 +137,7 @@ Offset   Size (bits)   Size (bytes)   Name             Value
 20       64-bit        8 bytes        reserved         0
 28       160-bit       20 bytes       info_hash        <SHA-1 Hash of Torrent's Info>
 48       160-bit       20 bytes       peer_id          <Peer ID from Announce Request>
-68
-
-*/
+68                                                                                      */
 
 export const buildHandshake = torrent => {
 	let buffer = Buffer.alloc(68);
@@ -162,15 +155,7 @@ export const buildHandshake = torrent => {
 	infoHash(torrent).copy(buffer, 28);
 
 	// Peer ID
-	generatePeerId().copy(buffer, 48);
+	getPeerId().copy(buffer, 48);
 
 	return buffer;
 }
-
-
-
-
-
-
-
-

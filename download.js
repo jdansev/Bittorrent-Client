@@ -62,7 +62,7 @@ const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to 
 const onWholeMsg = (socket, peer) => {
 
   const HANDSHAKE_TIMEOUT_MS = 10000;
-  const FOLLOW_UP_TIMEOUT_MS = 10000;
+  const FOLLOW_UP_TIMEOUT_MS = 20000;
 
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
@@ -80,12 +80,14 @@ const onWholeMsg = (socket, peer) => {
     const msgLen = () => handshake ? savedBuf.readUInt8(0) + 49 : savedBuf.readInt32BE(0) + 4;
     savedBuf = Buffer.concat([savedBuf, recvBuf]);
 
+
     while (savedBuf.length >= 4 && savedBuf.length >= msgLen()) {
 
-      // callback(savedBuf.slice(0, msgLen()));
+
 
       // When placed inside the socket's receive listener, the timeout resets each time a follow up is received
       let followUpTimeout = createSocketTimeout('Follow Up Timeout', socket, peer, FOLLOW_UP_TIMEOUT_MS);
+
 
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
         handshakeTimeout.stop();
