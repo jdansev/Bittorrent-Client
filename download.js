@@ -2,7 +2,33 @@
 import chalk from 'chalk';
 import net from 'net';
 
-import { buildHandshake } from './packets';
+import { buildHandshake, buildInterested } from './packets';
+import { haveHandler, bitfieldHandler } from './message-handlers';
+
+
+
+
+const parseRecvBuf = msg => {
+
+  const id = msg.length > 4 ? msg.readInt8(4) : null;
+  let payload = msg.length > 5 ? msg.slice(5) : null;
+
+  if (id === 6 || id === 7 || id === 8) {
+    const rest = payload.slice(8);
+    payload = {
+      index: payload.readInt32BE(0),
+      begin: payload.readInt32BE(4)
+    };
+    payload[id === 7 ? 'block' : 'length'] = rest;
+  }
+
+  return {
+    size : msg.readInt32BE(0),
+    id : id,
+    payload : payload
+  }
+
+};
 
 
 
@@ -43,11 +69,11 @@ const dataPrefix = `${chalk.bgWhite.black(' Data ')}      `;
 const connectedPrefix = `${chalk.bgGreen.black(' Connected ')} `;
 const errorPrefix = `${chalk.bgRed.white(' Error ')}     `;
 
-
 const dataLog = (peer) => console.log(`${dataPrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
 const errorLog = (peer) => console.log(`${errorPrefix} ${chalk.gray('closing socket')} ${peer.ip}:${peer.port}`);
 const handshakeLog = (peer) => console.log(`${handshakePrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
 const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to peer at')}     ${peer.ip}:${peer.port}`);
+
 
 
 const onWholeMsg = (socket, peer, callback) => {
@@ -55,8 +81,6 @@ const onWholeMsg = (socket, peer, callback) => {
   let handshake = true;
 
   socket.on('data', recvBuf => {
-
-    dataLog(peer);
 
     // msgLen calculates the length of a whole message
     const msgLen = () => handshake ? savedBuf.readUInt8(0) + 49 : savedBuf.readInt32BE(0) + 4;
@@ -68,6 +92,19 @@ const onWholeMsg = (socket, peer, callback) => {
 
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
         handshakeLog(peer);
+        socket.write(buildInterested());
+      } else {
+
+        const msg = parseRecvBuf(savedBuf.slice(0, msgLen()));
+
+        switch (msg.id) {
+          case 4: haveHandler(peer); break;
+          case 5: bitfieldHandler(peer); break;
+          default: dataLog(peer); break;
+        }
+
+        console.log(msg);
+
       }
 
       savedBuf = savedBuf.slice(msgLen());
@@ -79,8 +116,6 @@ const onWholeMsg = (socket, peer, callback) => {
 
 
 export const download = (peer, torrent) => {
-  // console.log('Downloading...');
-
   let socket = net.Socket();
 
   socket.on('error', () => {

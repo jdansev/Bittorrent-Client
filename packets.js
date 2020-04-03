@@ -163,3 +163,22 @@ export const buildHandshake = torrent => {
 
 	return buffer;
 }
+
+
+
+
+
+
+
+
+export const buildInterested = () => {
+	const buffer = Buffer.alloc(5);
+
+  // Length
+	buffer.writeUInt32BE(1, 0);
+	
+  // ID
+	buffer.writeUInt8(2, 4);
+
+  return buffer;
+}
