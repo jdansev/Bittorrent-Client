@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import net from 'net';
 
 import { buildHandshake, buildInterested } from './packets';
-import { haveHandler, bitfieldHandler } from './message-handlers';
+import { haveHandler, bitfieldHandler, unchokeHandler } from './message-handlers';
 
 
 
@@ -65,7 +65,7 @@ const isHandshake = msg => {
 
 
 const handshakePrefix = `${chalk.bgYellow.black(' Handshake ')} `;
-const dataPrefix = `${chalk.bgWhite.black(' Data ')}      `;
+const dataPrefix = `${chalk.bgWhiteBright.black(' Data ')}      `;
 const connectedPrefix = `${chalk.bgGreen.black(' Connected ')} `;
 const errorPrefix = `${chalk.bgRed.white(' Error ')}     `;
 
@@ -98,6 +98,7 @@ const onWholeMsg = (socket, peer, callback) => {
         const msg = parseRecvBuf(savedBuf.slice(0, msgLen()));
 
         switch (msg.id) {
+          case 1: unchokeHandler(peer); break;
           case 4: haveHandler(peer); break;
           case 5: bitfieldHandler(peer); break;
           default: dataLog(peer); break;
