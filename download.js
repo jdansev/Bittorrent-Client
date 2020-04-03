@@ -46,7 +46,7 @@ const errorPrefix = `${chalk.bgRed.white(' Error ')}     `;
 
 const dataLog = (peer) => console.log(`${dataPrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
 const errorLog = (peer) => console.log(`${errorPrefix} ${chalk.gray('closing socket')} ${peer.ip}:${peer.port}`);
-const handshakeLog = (peer) => console.log(`${handshakePrefix} ${chalk.gray('from')}           ${peer.ip}:${peer.port}`);
+const handshakeLog = (peer) => console.log(`${handshakePrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
 const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to peer at')}     ${peer.ip}:${peer.port}`);
 
 
