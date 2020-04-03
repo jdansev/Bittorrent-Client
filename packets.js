@@ -135,14 +135,14 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 
 /* Handshake
 
-	Offset   Size (bits)   Size (bytes)   Name             Value
-	--------------------------------------------------------------------------------------
-	0        8-bit         1 byte         pstrlen          <String length of pstr>
-	1        152-bit       19 bytes       pstr             "BitTorrent protocol"
-	20       64-bit        8 bytes        reserved         0
-	28       160-bit       20 bytes       info_hash        <SHA-1 Hash of Torrent's Info>
-	48       160-bit       20 bytes       peer_id          <Peer ID from Announce Request>
-	68
+Offset   Size (bits)   Size (bytes)   Name             Value
+--------------------------------------------------------------------------------------
+0        8-bit         1 byte         pstrlen          <String length of pstr>
+1        152-bit       19 bytes       pstr             "BitTorrent protocol"
+20       64-bit        8 bytes        reserved         0
+28       160-bit       20 bytes       info_hash        <SHA-1 Hash of Torrent's Info>
+48       160-bit       20 bytes       peer_id          <Peer ID from Announce Request>
+68
 
 */
 
