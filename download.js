@@ -1,28 +1,10 @@
-
 import chalk from 'chalk';
 import net from 'net';
 
-import { buildHandshake, buildInterested } from './packets';
+import { createSocketTimeout } from './timeout';
+import { buildHandshake } from './packets';
+import { buildInterested } from './messages';
 import { haveHandler, bitfieldHandler, chokeHandler, unchokeHandler } from './message-handlers';
-
-
-
-
-
-const createSocketTimeout = (timeoutName, socket, peer, TIMEOUT_MS) => {
-  let flag = false;
-
-  return {
-    start: () => setTimeout(() => {
-      if (!flag) {
-        console.log(`${timeoutName} ${peer.ip}:${peer.port}`);
-        socket.destroy();
-      }
-    }, TIMEOUT_MS),
-
-    stop: () => flag = true
-  }
-}
 
 
 
@@ -40,12 +22,11 @@ const parseRecvBuf = msg => {
   }
 
   return {
-    size : msg.readInt32BE(0),
-    id : id,
-    payload : payload
+    size: msg.readInt32BE(0),
+    id: id,
+    payload: payload
   }
 };
-
 
 
 
@@ -86,10 +67,6 @@ const onWholeMsg = (socket, peer) => {
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
 
-  let hasHandshaked = false;
-  let hasFollowedUp = false;
-
-
   /* Start handshake timeout */
   let handshakeTimeout = createSocketTimeout('Handshake Timeout', socket, peer, HANDSHAKE_TIMEOUT_MS);
   handshakeTimeout.start();
@@ -126,30 +103,25 @@ const onWholeMsg = (socket, peer) => {
         const msg = parseRecvBuf(savedBuf.slice(0, msgLen()));
 
         switch (msg.id) {
-          case 0: chokeHandler(peer);
-            socket.destroy();
-            return;
-            // break;
+          case 0:
+            chokeHandler(peer);
+            break;
 
-          case 1: unchokeHandler(peer);
-            socket.destroy();
-            return;
-            // break;
+          case 1:
+            unchokeHandler(peer);
+            break;
 
-          case 4: haveHandler(peer);
-            socket.destroy();
-            return;
-            // break;
+          case 4:
+            haveHandler(peer);
+            break;
 
-          case 5: bitfieldHandler(peer);
-            socket.destroy();
-            return;
-            // break;
+          case 5:
+            bitfieldHandler(peer);
+            break;
 
-          default: dataLog(peer);
-            socket.destroy();
-            return;
-            // break;
+          default:
+            dataLog(peer);
+            break;
 
         }
 
@@ -199,8 +171,5 @@ export const download = (peer, torrent) => {
     // Only enable the data listener once socket is connected
     onWholeMsg(socket, peer);
   });
-  
+
 };
-
-
-

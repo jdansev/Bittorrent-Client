@@ -1,28 +1,31 @@
 import crypto from 'crypto';
 import bencode from 'bencode';
 
-import { toBigIntBE, toBufferBE } from 'bigint-buffer';
+import {
+	toBigIntBE,
+	toBufferBE
+} from 'bigint-buffer';
 
 let peerId = null;
 const generatePeerId = () => {
 	if (!peerId) {
 		peerId = crypto.randomBytes(20);
-  	Buffer.from('-BC0001-').copy(peerId, 0);
+		Buffer.from('-BC0001-').copy(peerId, 0);
 	}
-  return peerId;
+	return peerId;
 };
 
 const infoHash = torrent => {
-  const info = bencode.encode(torrent.info);
-  return crypto.createHash('sha1').update(info).digest();
+	const info = bencode.encode(torrent.info);
+	return crypto.createHash('sha1').update(info).digest();
 };
 
 const torrentSize = torrent => {
-  const size = torrent.info.files ?
-    torrent.info.files.map(file => file.length).reduce((a, b) => a + b) :
-    torrent.info.length;
+	const size = torrent.info.files ?
+		torrent.info.files.map(file => file.length).reduce((a, b) => a + b) :
+		torrent.info.length;
 
-  return toBufferBE(BigInt(size), 8);
+	return toBufferBE(BigInt(size), 8);
 };
 
 
@@ -77,7 +80,7 @@ export const buildConnectPacket = () => {
 */
 
 export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
-  let buffer = Buffer.alloc(98);
+	let buffer = Buffer.alloc(98);
 
 	// Connection ID
 	connId.copy(buffer, 0);
@@ -90,8 +93,8 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	// Transaction ID
 	crypto.randomBytes(4).copy(buffer, 12);
 
-  // Info Hash
-  infoHash(torrent).copy(buffer, 16);
+	// Info Hash
+	infoHash(torrent).copy(buffer, 16);
 
 	// Peer ID
 	generatePeerId().copy(buffer, 36);
@@ -99,8 +102,8 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	// Downloaded
 	Buffer.alloc(8).copy(buffer, 56);
 
-  // Left
-  torrentSize(torrent).copy(buffer, 64);
+	// Left
+	torrentSize(torrent).copy(buffer, 64);
 
 	// Uploaded
 	Buffer.alloc(8).copy(buffer, 72);
@@ -123,7 +126,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	buffer.writeInt32BE(-1, 92);
 
 	// Port
-  buffer.writeUInt16BE(port, 96);
+	buffer.writeUInt16BE(port, 96);
 
 	return buffer;
 }
@@ -171,14 +174,3 @@ export const buildHandshake = torrent => {
 
 
 
-export const buildInterested = () => {
-	const buffer = Buffer.alloc(5);
-
-  // Length
-	buffer.writeUInt32BE(1, 0);
-	
-  // ID
-	buffer.writeUInt8(2, 4);
-
-  return buffer;
-}
