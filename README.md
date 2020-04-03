@@ -1,6 +1,6 @@
 # Bittorrent-Client
 
-My own client that implements Bittorrent Protocol v1.0.
+A client that communicates over the Bittorrent Protocol built from the ground up
 
 
 ### Usage
