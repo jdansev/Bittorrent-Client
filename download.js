@@ -6,7 +6,7 @@ import { buildHandshake } from './packets';
 import { buildInterested } from './messages';
 import { haveHandler, bitfieldHandler, chokeHandler, unchokeHandler } from './message-handlers';
 
-
+import { PeerPieces } from './peer-pieces';
 
 const parseSocketMessage = message => {
   const id = message.length > 4 ? message.readInt8(4) : null;
@@ -60,7 +60,7 @@ const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to 
 
 
 
-const onWholeMsg = (socket, peer) => {
+const onWholeMsg = (socket, peer, peerPieces) => {
 
   const HANDSHAKE_TIMEOUT_MS = 10000;
   const FOLLOW_UP_TIMEOUT_MS = 10000;
@@ -147,8 +147,11 @@ const connectToPeer = () => {
 
 
 
-export const download = (peer, torrent) => {
+export const download = (peer, torrent, requestedList) => {
   const CONNECTION_TIMEOUT_MS = 10000;
+
+  /* PEER PIECES */
+  let peerPieces = new PeerPieces();
 
   let socket = net.Socket();
 
@@ -168,7 +171,7 @@ export const download = (peer, torrent) => {
     connectTimeout.clear();
 
     // Only enable the data listener once socket is connected
-    onWholeMsg(socket, peer);
+    onWholeMsg(socket, peer, peerPieces);
   });
 
 };

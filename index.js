@@ -3,6 +3,8 @@ import * as torrentParser from './torrent-parser';
 import { PACKET, udpSend } from './tracker';
 import { download } from './download';
 
+import { RequestedList } from './requested-list';
+
 
 const main = async () => {
   console.log('Starting program.');
@@ -17,8 +19,11 @@ const main = async () => {
     let announceResponse = await udpSend(torrent, PACKET.ANNOUNCE, connectResponse);
     console.log(announceResponse);
 
+    /* REQUESTED LIST */
+    let requestedList = new RequestedList();
+
     for (let peer of announceResponse.peers) {
-      download(peer, torrent);
+      download(peer, torrent, requestedList);
     }
 
   } catch (e) {
