@@ -19,13 +19,35 @@ export const getInfoHash = torrent => {
 };
 
 
-export const getTorrentSize = torrent => {
+/* Returns a BigInt */
+const getTorrentSize = torrent => {
 	const size = torrent.info.files ?
 		torrent.info.files.map(file => file.length).reduce((a, b) => a + b) :
 		torrent.info.length;
 
-	return toBufferBE(BigInt(size), 8);
+	return BigInt(size);
 };
+
+
+/* Returns a buffer */
+export const getTorrentSizeBuffer = torrent => toBufferBE(getTorrentSize(torrent), 8);
+
+
+/* Returns a BigInt */
+export const getPieceLength = (torrent, pieceIndex) => {
+	const totalLength = getTorrentSize(torrent);
+	const pieceLength = BigInt(torrent.info['piece length']);
+	let lastPieceLength = totalLength % pieceLength;
+	let lastPieceIndex = Math.floor(Number(totalLength / pieceLength));
+
+	// console.log(`totalLength: ${totalLength}`);
+	// console.log(`pieceLength: ${pieceLength}`);
+	// console.log(`lastPieceLength: ${lastPieceLength}`);
+	// console.log(`lastPieceIndex: ${lastPieceIndex}`);
+
+	return pieceIndex == lastPieceIndex ? lastPieceLength : pieceLength;
+}
+
 
 
 const generatePeerId = () => {

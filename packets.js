@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import { getPeerId, getInfoHash, getTorrentSize } from './torrent-parser';
+import { getPeerId, getInfoHash, getTorrentSizeBuffer } from './torrent-parser';
 
 
 
@@ -72,7 +72,7 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	Buffer.alloc(8).copy(buffer, 56);
 
 	// Left
-	getTorrentSize(torrent).copy(buffer, 64);
+	getTorrentSizeBuffer(torrent).copy(buffer, 64);
 
 	// Uploaded
 	Buffer.alloc(8).copy(buffer, 72);
