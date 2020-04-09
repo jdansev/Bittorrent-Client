@@ -10,6 +10,6 @@ export const createSocketTimeout = (timeoutName, socket, peer, TIMEOUT_MS) => {
             }
         }, TIMEOUT_MS),
 
-        stop: () => flag = true
+        clear: () => flag = true
     }
 }

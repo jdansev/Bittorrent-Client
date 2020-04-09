@@ -96,14 +96,14 @@ const onWholeMsg = (socket, peer) => {
 
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
 
-        handshakeTimeout.stop();
+        handshakeTimeout.clear();
 
         handshakeLog(peer);
         socket.write(buildInterested());
 
       } else {
 
-        messageTimeout.stop();
+        messageTimeout.clear();
 
         const message = parseSocketMessage(savedBuf.slice(0, msgLen()));
 
@@ -165,7 +165,7 @@ export const download = (peer, torrent) => {
     connectedLog(peer);
     socket.write(buildHandshake(torrent));
 
-    connectTimeout.stop();
+    connectTimeout.clear();
 
     // Only enable the data listener once socket is connected
     onWholeMsg(socket, peer);
