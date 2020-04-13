@@ -1,13 +1,26 @@
 import chalk from 'chalk';
 import net from 'net';
 
-import { createSocketTimeout } from './timeout';
 import { buildHandshake } from './packets';
 import { buildInterested } from './messages';
 import { haveHandler, bitfieldHandler, chokeHandler, unchokeHandler } from './message-handlers';
 
 import { PeerPieces } from './peer-pieces';
 import { SocketTimeout } from './timeout';
+
+
+/* TODO: Move into Logger file */
+const handshakePrefix = `${chalk.bgYellow.black(' Handshake ')} `;
+const dataPrefix = `${chalk.bgWhiteBright.black(' Data ')}      `;
+const connectedPrefix = `${chalk.bgGreen.black(' Connected ')} `;
+const errorPrefix = `${chalk.bgRed.white(' Error ')}     `;
+
+const dataLog = (peer) => console.log(`${dataPrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
+const errorLog = (peer) => console.log(`${errorPrefix} ${chalk.gray('closing socket')} ${peer.ip}:${peer.port}`);
+const handshakeLog = (peer) => console.log(`${handshakePrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
+const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to peer at')}     ${peer.ip}:${peer.port}`);
+
+
 
 
 const parseSocketMessage = message => {
@@ -34,7 +47,6 @@ const parseSocketMessage = message => {
 
 
 const isHandshake = message => {
-
   // The string length of <pstr> as a single byte
   let pstrlen = message.readUInt8(0);
 
@@ -49,27 +61,17 @@ const isHandshake = message => {
 
 
 
-const handshakePrefix = `${chalk.bgYellow.black(' Handshake ')} `;
-const dataPrefix = `${chalk.bgWhiteBright.black(' Data ')}      `;
-const connectedPrefix = `${chalk.bgGreen.black(' Connected ')} `;
-const errorPrefix = `${chalk.bgRed.white(' Error ')}     `;
-
-const dataLog = (peer) => console.log(`${dataPrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
-const errorLog = (peer) => console.log(`${errorPrefix} ${chalk.gray('closing socket')} ${peer.ip}:${peer.port}`);
-const handshakeLog = (peer) => console.log(`${handshakePrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
-const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to peer at')}     ${peer.ip}:${peer.port}`);
-
-
-
 
 const onWholeMsg = (socket, peer, peerPieces) => {
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
+  
 
   /* Start handshake timeout */
   let handshakeTimeout = new SocketTimeout('Handshake Timeout', socket, peer);
   handshakeTimeout.start(10000);
   
+
   // When placed inside the socket's receive listener, the timeout resets each time a follow up message is received
   let messageTimeout = new SocketTimeout('Message Timeout', socket, peer);
 
@@ -91,40 +93,27 @@ const onWholeMsg = (socket, peer, peerPieces) => {
 
 
       if (isHandshake(savedBuf.slice(0, msgLen()))) {
-
         handshakeTimeout.clear();
-
         handshakeLog(peer);
         socket.write(buildInterested());
-
-      } else {
-
+      }
+      
+      else {
         // messageTimeout.clear();
 
         const message = parseSocketMessage(savedBuf.slice(0, msgLen()));
 
-        switch (message.id) {
-          case 0:
-            chokeHandler(peer);
-            break;
-
-          case 1:
-            unchokeHandler(peer);
-            break;
-
-          case 4:
-            haveHandler(message.payload, peerPieces, peer);
-            break;
-
-          case 5:
-            bitfieldHandler(peer);
-            break;
-
-          default:
-            dataLog(peer);
-            break;
+        if (message.id === 0) {
+          chokeHandler(peer);
+        } else if (message.id === 1) {
+          unchokeHandler(peer);
+        } else if (message.id === 4) {
+          haveHandler(message.payload, peerPieces, peer);
+        } else if (message.id === 5) {
+          bitfieldHandler(peer);
+        } else {
+          dataLog(peer);
         }
-
         console.log(message);
       }
 
@@ -136,25 +125,12 @@ const onWholeMsg = (socket, peer, peerPieces) => {
 
 
 
-const connectToPeer = () => {
-
-}
-
-
-
 export const download = (peer, torrent, pieces) => {
-  const CONNECTION_TIMEOUT_MS = 10000;
 
-  /* PEER PIECES */
+  /* Peer Pieces */
   let peerPieces = new PeerPieces();
 
   let socket = net.Socket();
-
-
-  /* Connect Timeout */
-  let connectTimeout = new SocketTimeout('Connection Timeout', socket, peer)
-  connectTimeout.start(CONNECTION_TIMEOUT_MS);
-
 
   socket.on('error', _ => {
     errorLog(peer);
@@ -170,5 +146,9 @@ export const download = (peer, torrent, pieces) => {
     // Only enable the data listener once socket is connected
     onWholeMsg(socket, peer, peerPieces);
   });
+
+  /* Connect Timeout */
+  let connectTimeout = new SocketTimeout('Connection Timeout', socket, peer);
+  connectTimeout.start(10000);
 
 };
