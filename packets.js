@@ -1,7 +1,5 @@
 import crypto from 'crypto';
 
-import { getPeerId, getInfoHash, getTorrentSizeBuffer } from './torrent-parser';
-
 
 
 /* Connect Request
@@ -63,16 +61,16 @@ export const buildAnnouncePacket = (connId, torrent, port = 6881) => {
 	crypto.randomBytes(4).copy(buffer, 12);
 
 	// Info Hash
-	getInfoHash(torrent).copy(buffer, 16);
+	torrent.getInfoHash().copy(buffer, 16);
 
 	// Peer ID
-	getPeerId().copy(buffer, 36);
+	torrent.generatePeerId().copy(buffer, 36);
 
 	// Downloaded
 	Buffer.alloc(8).copy(buffer, 56);
 
 	// Left
-	getTorrentSizeBuffer(torrent).copy(buffer, 64);
+	torrent.getTorrentSizeBuffer().copy(buffer, 64);
 
 	// Uploaded
 	Buffer.alloc(8).copy(buffer, 72);
@@ -121,10 +119,10 @@ export const buildHandshake = torrent => {
 	Buffer.alloc(8).copy(buffer, 20);
 
 	// Info Hash
-	getInfoHash(torrent).copy(buffer, 28);
+	torrent.getInfoHash().copy(buffer, 28);
 
 	// Peer ID
-	getPeerId().copy(buffer, 48);
+	torrent.generatePeerId().copy(buffer, 48);
 
 	return buffer;
 }

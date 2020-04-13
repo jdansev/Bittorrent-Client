@@ -2,7 +2,6 @@
 import chalk from 'chalk';
 
 
-
 const havePrefix = `${chalk.bgCyan.black(' Have ')}      `;
 const bitfieldPrefix = `${chalk.bgGray.black(' Bitfield ')}  `;
 const unchokePrefix = `${chalk.bgMagenta.black(' Unchoke ')}   `;
@@ -14,9 +13,12 @@ const chokeLog = peer => console.log(`${chokePrefix} ${chalk.gray('received from
 const unchokeLog = peer => console.log(`${unchokePrefix} ${chalk.gray('received from')}  ${peer.ip}:${peer.port}`);
 
 
+export const haveHandler = (payload, peerPieces, peer) => {
 
+  const pieceIndex = payload.readUInt32BE(0);
+  peerPieces.enqueue(pieceIndex);
+  console.log(pieceIndex);
 
-export const haveHandler = peer => {
   haveLog(peer);
 }
 

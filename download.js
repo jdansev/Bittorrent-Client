@@ -7,6 +7,8 @@ import { buildInterested } from './messages';
 import { haveHandler, bitfieldHandler, chokeHandler, unchokeHandler } from './message-handlers';
 
 import { PeerPieces } from './peer-pieces';
+import { SocketTimeout } from './timeout';
+
 
 const parseSocketMessage = message => {
   const id = message.length > 4 ? message.readInt8(4) : null;
@@ -61,21 +63,15 @@ const connectedLog = (peer) => console.log(`${connectedPrefix} ${chalk.gray('to 
 
 
 const onWholeMsg = (socket, peer, peerPieces) => {
-
-  const HANDSHAKE_TIMEOUT_MS = 10000;
-  const FOLLOW_UP_TIMEOUT_MS = 10000;
-
   let savedBuf = Buffer.alloc(0);
   let handshake = true;
 
   /* Start handshake timeout */
-  let handshakeTimeout = createSocketTimeout('Handshake Timeout', socket, peer, HANDSHAKE_TIMEOUT_MS);
-  handshakeTimeout.start();
-
-
+  let handshakeTimeout = new SocketTimeout('Handshake Timeout', socket, peer);
+  handshakeTimeout.start(10000);
   
   // When placed inside the socket's receive listener, the timeout resets each time a follow up message is received
-  let messageTimeout = createSocketTimeout('Message Timeout', socket, peer, FOLLOW_UP_TIMEOUT_MS);
+  let messageTimeout = new SocketTimeout('Message Timeout', socket, peer);
 
 
   socket.on('data', recvBuf => {
@@ -87,7 +83,7 @@ const onWholeMsg = (socket, peer, peerPieces) => {
 
     // On socket message, and handshake has already been received, start the follow up timeout
     if (handshake) {
-      messageTimeout.start();
+      messageTimeout.start(10000);
     }
 
 
@@ -103,7 +99,7 @@ const onWholeMsg = (socket, peer, peerPieces) => {
 
       } else {
 
-        messageTimeout.clear();
+        // messageTimeout.clear();
 
         const message = parseSocketMessage(savedBuf.slice(0, msgLen()));
 
@@ -117,7 +113,7 @@ const onWholeMsg = (socket, peer, peerPieces) => {
             break;
 
           case 4:
-            haveHandler(peer);
+            haveHandler(message.payload, peerPieces, peer);
             break;
 
           case 5:
@@ -127,7 +123,6 @@ const onWholeMsg = (socket, peer, peerPieces) => {
           default:
             dataLog(peer);
             break;
-
         }
 
         console.log(message);
@@ -147,7 +142,7 @@ const connectToPeer = () => {
 
 
 
-export const download = (peer, torrent, requestedList) => {
+export const download = (peer, torrent, pieces) => {
   const CONNECTION_TIMEOUT_MS = 10000;
 
   /* PEER PIECES */
@@ -155,8 +150,10 @@ export const download = (peer, torrent, requestedList) => {
 
   let socket = net.Socket();
 
-  let connectTimeout = createSocketTimeout('Connection Timeout', socket, peer, CONNECTION_TIMEOUT_MS);
-  connectTimeout.start();
+
+  /* Connect Timeout */
+  let connectTimeout = new SocketTimeout('Connection Timeout', socket, peer)
+  connectTimeout.start(CONNECTION_TIMEOUT_MS);
 
 
   socket.on('error', _ => {

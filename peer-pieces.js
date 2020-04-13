@@ -1,6 +1,4 @@
 
-
-
 /* Peer Pieces
 
   - Each TCP peer connection will maintain it's own separate queue
@@ -12,17 +10,18 @@
 
 export class PeerPieces {
 
-  constructor() {
+  constructor(torrent) {
+    this._torrent = torrent;
     this._queue = [];
+    this._choked = true;
   }
 
-  add = pieceIndex => {
-    this._queue.push(pieceIndex);
-  }
+  enqueue = pieceIndex => this._queue.push(pieceIndex);
 
-  getAll = () => {
-    return this._queue;
-  }
+  dequeue = () => this._queue.shift();
+
+  peek = () => this._queue[0];
+
+  length = () => this._queue.length;
 
 }
-

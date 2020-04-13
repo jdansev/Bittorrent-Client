@@ -1,25 +1,23 @@
-import url from 'url';
 import dgram from 'dgram';
 
 import { buildConnectPacket, buildAnnouncePacket } from './packets';
 
+
 const RETRY_TIMEOUT_MS = 1000;
 const MAX_RETRIES = 5;
-
-
 
 export const PACKET = Object.freeze({
   CONNECT: 0,
   ANNOUNCE: 1,
 });
 
-const parseConnectResponse = response => {
-  return {
-    action: response.readUInt32BE(0),
-    transactionId: response.readUInt32BE(4),
-    connectionId: response.slice(8)
-  }
-}
+
+const parseConnectResponse = response => ({
+  action: response.readUInt32BE(0),
+  transactionId: response.readUInt32BE(4),
+  connectionId: response.slice(8)
+});
+
 
 const parseAnnounceResponse = response => {
   const group = (iterable, groupSize) => {
@@ -54,7 +52,7 @@ const responseType = response => {
 
 export const udpSend = (torrent, packetType, connResponse = undefined) => {
   let socket = dgram.createSocket('udp4');
-  let announceUrl = url.parse(torrent.announce.toString('utf8'));
+  let announceUrl = torrent.getAnnounceUrl();
 
   return new Promise((resolve, reject) => {
     let retryTimer;
@@ -91,9 +89,7 @@ export const udpSend = (torrent, packetType, connResponse = undefined) => {
     }
 
     const send = () => {
-      if (nRetries >= MAX_RETRIES) {
-        return onMaxRetries();
-      }
+      if (nRetries >= MAX_RETRIES) return onMaxRetries();
 
       let udpPacket;
       switch (packetType) {
